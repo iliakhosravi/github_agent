@@ -109,6 +109,32 @@ python run.py                 # http://127.0.0.1:5000
 
 ---
 
+## Running it in Docker
+
+The default above runs Postgres in Docker and the app on your machine — best
+while you're editing code, since there's no rebuild between a change and a
+traceback. To run the whole thing in containers instead:
+
+```bash
+docker compose --profile app up --build
+```
+
+That builds the image, waits for Postgres to be healthy, creates the tables, and
+serves on `http://127.0.0.1:5000` under gunicorn. It reads your `.env` but
+overrides `DATABASE_URL` — inside the compose network the database host is `db`,
+not `localhost`.
+
+Two things about the image worth knowing. The timeout is 600s because a single
+agent turn can run for minutes across many MCP round trips; the default 30s
+would kill real work. And it uses threads rather than many workers: each worker
+process keeps its own asyncio loop (`app/agent/runner.py`), and requests spend
+almost all their time waiting on the LLM and GitHub.
+
+If you use OAuth, `GITHUB_OAUTH_REDIRECT_URI` still points at
+`http://127.0.0.1:5000/...` — the port is published, so that keeps working.
+
+---
+
 ## Connecting a GitHub account
 
 **Option A — personal access token** (fastest):
@@ -220,15 +246,90 @@ Adding a provider = one function plus one entry in `_BUILDERS` in `app/agent/llm
 
 ---
 
-## Tests
+## Testing
+
+Four levels, cheapest first.
+
+### 1. Offline unit tests — no keys, no network
 
 ```bash
-pytest -q
+pytest -q          # 9 passed
 ```
 
-Nine tests, all offline — they cover token encryption round-trip, the
-3-message memory window, MCP header construction, prompt modes, the error
-contract, and the full agent loop driven by a fake model and a fake tool.
+Covers token encryption round-trip, the 3-message memory window, MCP header
+construction, prompt modes, the 401 contract when no token is stored, and the
+full agent loop driven by a fake chat model and a fake tool.
+
+### 2. Does it boot and see the database
+
+```bash
+python run.py
+curl -s localhost:5000/api/health | python -m json.tool
+```
+
+```json
+{"status": "ok", "database": true,
+ "llm": {"provider": "openai", "model": "gpt-4o"},
+ "write_mode": "branch_pr", "history_limit": 3}
+```
+
+`"database": false` means `DATABASE_URL` is wrong or Postgres isn't up.
+
+### 3. Guided end-to-end check
+
+```bash
+python scripts/live_check.py --token ghp_xxx --repo yourname/scratch-repo
+```
+
+It walks health → register token → list the MCP tools your token exposes →
+a read-only agent turn → a follow-up turn that proves the memory works →
+the stored transcript, and stops at the first failure with the reason.
+
+Add `--write` to also have the agent create a branch, add `AGENT_TEST.md`,
+and open a real pull request. **Point that at a throwaway repo.**
+
+```bash
+python scripts/live_check.py --token ghp_xxx --repo yourname/scratch-repo --write
+```
+
+### 4. By hand
+
+```bash
+# store a token
+curl -X POST localhost:5000/auth/token -H 'Content-Type: application/json' \
+  -d '{"user_id":"ilia","token":"ghp_xxx"}'
+
+# which GitHub tools the agent can see (isolates MCP problems from LLM problems)
+curl -s "localhost:5000/api/tools?user_id=ilia" | python -m json.tool
+
+# read-only prompt first
+curl -X POST localhost:5000/api/chat -H 'Content-Type: application/json' \
+  -d '{"user_id":"ilia","repo":"ilia/scratch","message":"What does src/client.py do? Do not change anything."}'
+
+# then a real edit, reusing session_id from the response above
+curl -X POST localhost:5000/api/chat -H 'Content-Type: application/json' \
+  -d '{"user_id":"ilia","session_id":"<id>","message":"Add retry with exponential backoff to it and open a PR."}'
+```
+
+### Testing without spending tokens on a real LLM
+
+Set `GITHUB_MCP_READONLY=true` to make the MCP server reject every write while
+you shake out auth and connectivity, or point at a local model:
+
+```bash
+LLM_PROVIDER=ollama
+LLM_MODEL=qwen2.5-coder:14b
+```
+
+### Where failures usually come from
+
+| Symptom | Cause |
+|---|---|
+| `github_token_missing` on `/api/chat` | no token stored for that `user_id` |
+| `invalid_token` on `/auth/token` | PAT is wrong, expired, or lacks `repo` |
+| `/api/tools` fails but `/api/health` is fine | MCP URL or token scope — not the LLM |
+| agent answers but changes nothing | model chose not to call tools; check `tool_calls` in the response |
+| `configuration_error` about a provider | the provider's package isn't installed |
 
 ---
 

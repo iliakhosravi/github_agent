@@ -1,3 +1,5 @@
+# Local development:   docker compose up -d db      (Postgres only, app runs on your machine)
+# Everything in Docker: docker compose --profile app up --build
 services:
   db:
     image: postgres:16-alpine
@@ -15,6 +17,28 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+
+  app:
+    # Behind a profile so `docker compose up -d db` stays the dev default.
+    profiles: ["app"]
+    build: .
+    container_name: github_agent_app
+    env_file: .env
+    environment:
+      # Overrides the .env value: inside the network the database is "db",
+      # not localhost.
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/github_agent
+    ports:
+      - "5001:5000"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+    # Create tables on first boot, then serve.
+    command: >
+      sh -c "flask --app run.py init-db && exec gunicorn
+      --bind 0.0.0.0:5000 --workers 2 --worker-class gthread --threads 8
+      --timeout 600 --graceful-timeout 30 --access-logfile - run:app"
 
 volumes:
   pgdata:
