@@ -120,7 +120,7 @@ docker compose --profile app up --build
 ```
 
 That builds the image, waits for Postgres to be healthy, creates the tables, and
-serves on `http://127.0.0.1:5000` under gunicorn. It reads your `.env` but
+serves on `http://127.0.0.1:5001` on the host under gunicorn. It reads your `.env` but
 overrides `DATABASE_URL` — inside the compose network the database host is `db`,
 not `localhost`.
 
@@ -130,8 +130,11 @@ would kill real work. And it uses threads rather than many workers: each worker
 process keeps its own asyncio loop (`app/agent/runner.py`), and requests spend
 almost all their time waiting on the LLM and GitHub.
 
-If you use OAuth, `GITHUB_OAUTH_REDIRECT_URI` still points at
-`http://127.0.0.1:5000/...` — the port is published, so that keeps working.
+If you use OAuth with the full Docker Compose app profile, set
+`GITHUB_OAUTH_REDIRECT_URI` to
+`http://127.0.0.1:5001/auth/github/callback`, and use the same callback URL in
+the GitHub OAuth App. The app listens on `5000` inside the container, but the
+host port is `5001`.
 
 ---
 
@@ -214,14 +217,85 @@ LLM_MODEL=claude-sonnet-4-5
 ANTHROPIC_API_KEY=...
 ```
 
+For an Anthropic-compatible proxy or gateway, also set its base URL:
+
+```env
+LLM_PROVIDER=anthropic
+LLM_MODEL=<model-name-from-the-provider>
+ANTHROPIC_API_KEY=<provider-key>
+ANTHROPIC_BASE_URL=https://api.example.com
+```
+
+Google Gemini:
+
+```env
+LLM_PROVIDER=google
+LLM_MODEL=gemini-3.6-flash
+GOOGLE_API_KEY=<your-google-ai-studio-api-key>
+```
+
 ```bash
 LLM_PROVIDER=ollama
 LLM_MODEL=qwen2.5-coder:14b
 OLLAMA_BASE_URL=http://localhost:11434
 ```
 
-Install the matching package (`langchain-anthropic`, `langchain-ollama`, …) —
-they are listed, commented out, in `requirements.txt`.
+Install the matching package (`langchain-groq`, …) if it is not already in
+`requirements.txt`. OpenAI, Anthropic, Google, and Ollama are installed by
+default from `requirements.txt`.
+
+### Local Model With Ollama
+
+You cannot download OpenAI GPT models for local use, but you can test the app
+without OpenAI API credits by running a local open model through Ollama.
+
+Install Ollama, then pull one model:
+
+```bash
+# lighter, faster, weaker for coding
+ollama pull qwen2.5-coder:7b
+
+# better for coding if your machine has enough RAM
+ollama pull qwen2.5-coder:14b
+```
+
+For local Python (`python run.py`), set:
+
+```env
+LLM_PROVIDER=ollama
+LLM_MODEL=qwen2.5-coder:7b
+OLLAMA_BASE_URL=http://localhost:11434
+```
+
+For the full Docker Compose app profile, Ollama runs on your host, so the app
+container must reach it through Docker's host alias:
+
+```env
+LLM_PROVIDER=ollama
+LLM_MODEL=qwen2.5-coder:7b
+OLLAMA_BASE_URL=http://host.docker.internal:11434
+```
+
+Restart the app after changing `.env`, then verify:
+
+```bash
+curl -s http://127.0.0.1:5000/api/health | python3 -m json.tool
+```
+
+If you are using Docker Compose for the app, use port `5001`:
+
+```bash
+curl -s http://127.0.0.1:5001/api/health | python3 -m json.tool
+```
+
+The health response should show:
+
+```json
+"provider": "ollama"
+```
+
+Local models are slower and less reliable at tool calling than hosted frontier
+models, so start with read-only prompts and inspect `tool_calls` in the response.
 
 Per-request override:
 

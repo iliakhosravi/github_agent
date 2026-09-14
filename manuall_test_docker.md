@@ -30,6 +30,37 @@ That last one is deliberate for the first pass — GitHub's MCP server will reje
 
 Leave `DATABASE_URL` as it is. Compose overrides it, because inside the container network the database is `db`, not `localhost`.
 
+### Optional: use a local model instead of OpenAI
+
+ChatGPT Plus does not include OpenAI API credits. If `/api/chat` fails with
+`credit_balance_exhausted`, you can test with a local model through Ollama
+instead.
+
+Install Ollama on your Mac, then pull a small coding model:
+
+```bash
+ollama pull qwen2.5-coder:7b
+```
+
+Then set these in `.env`:
+
+```env
+LLM_PROVIDER=ollama
+LLM_MODEL=qwen2.5-coder:7b
+OLLAMA_BASE_URL=http://host.docker.internal:11434
+```
+
+The `host.docker.internal` value is needed because the Flask app runs inside a
+container, while Ollama runs on your host machine. Rebuild the app image after
+changing dependencies or `.env`:
+
+```bash
+docker compose --profile app up --build
+```
+
+Local models are slower and less reliable at GitHub tool calling, so keep
+`GITHUB_MCP_READONLY=true` while testing.
+
 ## 2. Build and start everything
 
 ```bash

@@ -32,6 +32,37 @@ GITHUB_MCP_READONLY=true
 
 This makes GitHub's MCP server reject every write. You'll confirm auth and connectivity can't damage anything, then turn it off at step 10.
 
+### Optional: use a local model instead of OpenAI
+
+ChatGPT Plus does not include OpenAI API credits. If `/api/chat` fails with
+`credit_balance_exhausted`, you can test with a local model through Ollama
+instead.
+
+Install Ollama, then pull a small coding model:
+
+```bash
+ollama pull qwen2.5-coder:7b
+```
+
+Then set these in `.env`:
+
+```env
+LLM_PROVIDER=ollama
+LLM_MODEL=qwen2.5-coder:7b
+OLLAMA_BASE_URL=http://localhost:11434
+```
+
+Install the Ollama LangChain package if your virtualenv was created before it
+was added to `requirements.txt`:
+
+```bash
+pip install langchain-ollama
+```
+
+Restart `python run.py` after changing `.env`. Local models are slower and less
+reliable at GitHub tool calling, so keep `GITHUB_MCP_READONLY=true` while
+testing.
+
 ## 3. Start Postgres
 
 ```bash

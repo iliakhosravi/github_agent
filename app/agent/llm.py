@@ -33,6 +33,9 @@ def _azure_openai(model: str, **kw: Any) -> BaseChatModel:
 def _anthropic(model: str, **kw: Any) -> BaseChatModel:
     from langchain_anthropic import ChatAnthropic
 
+    base_url = os.getenv("ANTHROPIC_BASE_URL") or os.getenv("ANTHROPIC_API_URL")
+    if base_url:
+        kw.setdefault("base_url", base_url)
     kw.setdefault("max_tokens", 8192)
     return ChatAnthropic(model=model, **kw)
 

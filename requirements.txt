@@ -20,9 +20,9 @@ mcp>=1.9
 # The LLM is pluggable: set LLM_PROVIDER + LLM_MODEL in .env and install the
 # matching package below. Only the one you use needs to be installed.
 langchain-openai>=0.2
-# langchain-anthropic>=0.3
-# langchain-google-genai>=2.0
-# langchain-ollama>=0.2
+langchain-anthropic>=0.3
+langchain-google-genai>=2.0
+langchain-ollama>=0.2
 # langchain-groq>=0.2
 
 # --- Dev ---
