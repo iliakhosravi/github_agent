@@ -107,6 +107,9 @@ Run it:
 python run.py                 # http://127.0.0.1:5000
 ```
 
+Open Swagger UI at `http://127.0.0.1:5000/docs`. The raw OpenAPI document is
+available at `http://127.0.0.1:5000/openapi.json`.
+
 ---
 
 ## Running it in Docker
@@ -199,6 +202,8 @@ the last 3 messages are replayed as context.
 | GET | `/api/sessions/<id>/messages?user_id=` | full transcript |
 | GET | `/api/tools?user_id=` | which MCP tools this token exposes (debug) |
 | GET | `/api/health` | DB + config status |
+| GET | `/docs` | Swagger UI |
+| GET | `/openapi.json` | OpenAPI schema |
 | GET | `/auth/github/login?user_id=` | start OAuth |
 | GET | `/auth/github/callback` | OAuth callback |
 | POST | `/auth/token` | store a PAT |

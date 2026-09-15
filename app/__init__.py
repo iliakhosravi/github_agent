@@ -28,9 +28,11 @@ def create_app(config_object: type | str = Config) -> Flask:
 
     from .api import bp as api_bp
     from .auth import bp as auth_bp
+    from .docs import bp as docs_bp
 
     app.register_blueprint(api_bp)
     app.register_blueprint(auth_bp)
+    app.register_blueprint(docs_bp)
 
     from .cli import register_cli
 
@@ -49,6 +51,8 @@ def create_app(config_object: type | str = Config) -> Flask:
                     "GET  /api/sessions?user_id=",
                     "GET  /api/sessions/<id>/messages?user_id=",
                     "GET  /api/tools?user_id=",
+                    "GET  /docs",
+                    "GET  /openapi.json",
                     "GET  /auth/github/login?user_id=",
                     "GET  /auth/github/callback",
                     "POST /auth/token",

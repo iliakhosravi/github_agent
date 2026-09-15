@@ -41,6 +41,26 @@ def test_health(client):
     assert resp.get_json()["database"] is True
 
 
+def test_openapi_spec(client):
+    resp = client.get("/openapi.json")
+    assert resp.status_code == 200
+
+    spec = resp.get_json()
+    assert spec["openapi"] == "3.0.3"
+    assert spec["info"]["title"] == "GitHub Agent API"
+    assert "/api/chat" in spec["paths"]
+    assert "post" in spec["paths"]["/auth/token"]
+    assert "delete" in spec["paths"]["/auth/token"]
+
+
+def test_swagger_ui(client):
+    resp = client.get("/docs")
+    assert resp.status_code == 200
+    assert resp.mimetype == "text/html"
+    assert b"SwaggerUIBundle" in resp.data
+    assert b"/openapi.json" in resp.data
+
+
 def test_token_roundtrip(app):
     secret = "ghp_example_token_value"
     assert decrypt(encrypt(secret)) == secret
