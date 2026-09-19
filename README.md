@@ -320,6 +320,7 @@ Adding a provider = one function plus one entry in `_BUILDERS` in `app/agent/llm
 | `AGENT_WRITE_MODE` | `branch_pr` | `branch_pr` or `direct_commit` |
 | `GITHUB_MCP_TOOLSETS` | `context,repos,issues,pull_requests` | narrows the tool list; `all` for everything |
 | `GITHUB_MCP_READONLY` | `false` | `true` makes the MCP server reject writes |
+| `GITHUB_TOKEN_REFRESH_SKEW_SECONDS` | `300` | refresh OAuth access tokens this many seconds before expiry |
 | `AGENT_RECURSION_LIMIT` | `40` | max agent↔tool round trips |
 | `AGENT_TIMEOUT_SECONDS` | `300` | per-request ceiling |
 

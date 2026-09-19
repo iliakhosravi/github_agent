@@ -16,8 +16,7 @@ from ..models import GitHubCredential, User, utcnow
 from ..security.crypto import decrypt, encrypt
 from .errors import MissingCredential, UpstreamError
 
-# Refresh a little before actual expiry to avoid races.
-_EXPIRY_SKEW = timedelta(seconds=60)
+DEFAULT_REFRESH_SKEW_SECONDS = 300
 
 
 # --------------------------------------------------------------------------- users
@@ -85,7 +84,7 @@ def revoke_token(user: User) -> bool:
 
 
 def get_access_token(user: User) -> str:
-    """Return a usable access token, refreshing it first if it has expired."""
+    """Return a usable access token, refreshing first if it expires soon."""
     cred = user.credential
     if cred is None or cred.revoked:
         raise MissingCredential(
@@ -108,7 +107,14 @@ def _is_expired(cred: GitHubCredential) -> bool:
     expires_at = cred.expires_at
     if expires_at.tzinfo is None:
         expires_at = expires_at.replace(tzinfo=timezone.utc)
-    return datetime.now(timezone.utc) + _EXPIRY_SKEW >= expires_at
+    return datetime.now(timezone.utc) + _refresh_skew() >= expires_at
+
+
+def _refresh_skew() -> timedelta:
+    seconds = current_app.config.get(
+        "GITHUB_TOKEN_REFRESH_SKEW_SECONDS", DEFAULT_REFRESH_SKEW_SECONDS
+    )
+    return timedelta(seconds=max(0, int(seconds)))
 
 
 def refresh_credential(cred: GitHubCredential) -> GitHubCredential:

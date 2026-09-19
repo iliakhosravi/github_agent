@@ -4,6 +4,8 @@ Run with:  pytest -q
 """
 from __future__ import annotations
 
+from datetime import timedelta
+
 import pytest
 
 from app import create_app
@@ -11,6 +13,7 @@ from app.agent.mcp_client import build_headers
 from app.agent.prompts import build_system_prompt
 from app.config import TestConfig, normalize_db_url
 from app.extensions import db
+from app.models import utcnow
 from app.security.crypto import decrypt, encrypt
 from app.services import chat_service, token_service
 
@@ -64,6 +67,47 @@ def test_swagger_ui(client):
 def test_token_roundtrip(app):
     secret = "ghp_example_token_value"
     assert decrypt(encrypt(secret)) == secret
+
+
+def test_access_token_refreshes_before_expiry(app, monkeypatch):
+    user = token_service.get_or_create_user("oauth-user")
+    cred = token_service.save_token(
+        user,
+        "old-access-token",
+        token_type="oauth",
+        refresh_token="refresh-token",
+        expires_in=120,
+    )
+    app.config["GITHUB_TOKEN_REFRESH_SKEW_SECONDS"] = 300
+
+    def fake_refresh(stored_cred):
+        assert stored_cred.id == cred.id
+        stored_cred.access_token_enc = encrypt("new-access-token")
+        stored_cred.expires_at = utcnow() + timedelta(hours=1)
+        return stored_cred
+
+    monkeypatch.setattr(token_service, "refresh_credential", fake_refresh)
+
+    assert token_service.get_access_token(user) == "new-access-token"
+
+
+def test_access_token_reused_outside_refresh_skew(app, monkeypatch):
+    user = token_service.get_or_create_user("fresh-oauth-user")
+    token_service.save_token(
+        user,
+        "fresh-access-token",
+        token_type="oauth",
+        refresh_token="refresh-token",
+        expires_in=600,
+    )
+    app.config["GITHUB_TOKEN_REFRESH_SKEW_SECONDS"] = 300
+
+    def fail_refresh(_cred):
+        raise AssertionError("fresh token should not be refreshed")
+
+    monkeypatch.setattr(token_service, "refresh_credential", fail_refresh)
+
+    assert token_service.get_access_token(user) == "fresh-access-token"
 
 
 def test_chat_requires_token(client):

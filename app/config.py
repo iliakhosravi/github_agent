@@ -70,6 +70,7 @@ class Config:
     GITHUB_API_URL = os.getenv("GITHUB_API_URL", "https://api.github.com")
     OAUTH_SUCCESS_REDIRECT = os.getenv("OAUTH_SUCCESS_REDIRECT", "")
     OAUTH_STATE_MAX_AGE = _int("OAUTH_STATE_MAX_AGE", 600)
+    GITHUB_TOKEN_REFRESH_SKEW_SECONDS = _int("GITHUB_TOKEN_REFRESH_SKEW_SECONDS", 300)
 
     # --- GitHub MCP --------------------------------------------------------
     GITHUB_MCP_URL = os.getenv("GITHUB_MCP_URL", "https://api.githubcopilot.com/mcp/")
